@@ -106,4 +106,6 @@ def phrases():
     return render_template('phrases.html', top_phrases=top_phrases)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
