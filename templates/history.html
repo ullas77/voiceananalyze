@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translation History</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f0f0f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #444;
+        }
+        .entry {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 20px;
+        }
+        .entry p {
+            margin: 0;
+            padding: 5px 0;
+        }
+        .entry hr {
+            margin-top: 10px;
+        }
+        .nav {
+            margin-top: 20px;
+        }
+        .nav a {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .nav a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Translation History</h1>
+    {% for entry in history %}
+        <div class="entry">
+            <p><strong>Original:</strong> {{ entry[2] }}</p>
+            <p><strong>Translated:</strong> {{ entry[3] }}</p>
+            <p><strong>Timestamp:</strong> {{ entry[4] }}</p>
+            <hr>
+        </div>
+    {% endfor %}
+    <div class="nav">
+        <a href="/">Back to Home</a>
+    </div>
+</body>
+</html>

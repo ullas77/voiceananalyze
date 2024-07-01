@@ -1,0 +1,5 @@
+Flask
+deep_translator
+nltk
+tabulate
+SpeechRecognition
