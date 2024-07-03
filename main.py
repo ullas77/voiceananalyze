@@ -1,13 +1,9 @@
 import os
-import nltk
+import re
 from flask import Flask, render_template
 from collections import Counter
-from nltk.util import ngrams
 import logging
 import psycopg2
-
-# Download NLTK data
-nltk.download('punkt')
 
 app = Flask(__name__)
 
@@ -24,6 +20,13 @@ def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
+def simple_tokenize(text):
+    # This is a very basic tokenizer. It splits on whitespace and removes punctuation.
+    return re.findall(r'\w+', text.lower())
+
+def generate_ngrams(tokens, n):
+    return [' '.join(tokens[i:i+n]) for i in range(len(tokens)-n+1)]
+
 @app.route('/phrases')
 def phrases():
     try:
@@ -39,11 +42,11 @@ def phrases():
         
         user_text = ' '.join([text[0] for text in user_texts])
         
-        tokens = nltk.word_tokenize(user_text.lower())
+        tokens = simple_tokenize(user_text)
         
         phrases = []
         for n in range(2, 5):
-            phrases.extend([' '.join(gram) for gram in ngrams(tokens, n)])
+            phrases.extend(generate_ngrams(tokens, n))
         
         phrase_freq = Counter(phrases)
         top_phrases = phrase_freq.most_common(3)
