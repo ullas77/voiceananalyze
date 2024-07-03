@@ -90,6 +90,10 @@ def frequencies():
 import logging
 from flask import jsonify
 
+from flask import jsonify, render_template
+from collections import Counter
+import re
+
 @app.route('/phrases')
 def phrases():
     try:
@@ -98,18 +102,24 @@ def phrases():
         user_texts = c.fetchall()
         user_text = ' '.join([text[0] for text in user_texts])
         
-        tokens = nltk.word_tokenize(user_text.lower())
+        # Clean and tokenize the text
+        words = re.findall(r'\b\w+\b', user_text.lower())
         
+        # Generate phrases
         phrases = []
-        for n in range(2, 5):
-            phrases.extend([' '.join(gram) for gram in ngrams(tokens, n)])
+        for i in range(len(words)):
+            for n in range(2, 5):  # 2 to 4 word phrases
+                if i + n <= len(words):
+                    phrases.append(' '.join(words[i:i+n]))
         
+        # Count phrase frequencies
         phrase_freq = Counter(phrases)
         top_phrases = phrase_freq.most_common(3)
         
         return render_template('phrases.html', top_phrases=top_phrases)
     except Exception as e:
-        logging.error(f"An error occurred: {str(e)}")
+        error_msg = f"An error occurred: {str(e)}"
+        print(error_msg)  # This will appear in your render.com logs
         return jsonify({"error": "An internal error occurred"}), 500
 
 if __name__ == '__main__':
