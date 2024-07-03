@@ -87,23 +87,30 @@ def frequencies():
     
     return render_template('frequencies.html', freq_data=freq_data)
 
+import logging
+from flask import jsonify
+
 @app.route('/phrases')
 def phrases():
-    user_id = 1  # In a real app, you'd get this from user authentication
-    c.execute("SELECT translated_text FROM transcriptions WHERE user_id = ?", (user_id,))
-    user_texts = c.fetchall()
-    user_text = ' '.join([text[0] for text in user_texts])
-    
-    tokens = nltk.word_tokenize(user_text.lower())
-    
-    phrases = []
-    for n in range(2, 5):
-        phrases.extend([' '.join(gram) for gram in ngrams(tokens, n)])
-    
-    phrase_freq = Counter(phrases)
-    top_phrases = phrase_freq.most_common(3)
-    
-    return render_template('phrases.html', top_phrases=top_phrases)
+    try:
+        user_id = 1  # In a real app, you'd get this from user authentication
+        c.execute("SELECT translated_text FROM transcriptions WHERE user_id = ?", (user_id,))
+        user_texts = c.fetchall()
+        user_text = ' '.join([text[0] for text in user_texts])
+        
+        tokens = nltk.word_tokenize(user_text.lower())
+        
+        phrases = []
+        for n in range(2, 5):
+            phrases.extend([' '.join(gram) for gram in ngrams(tokens, n)])
+        
+        phrase_freq = Counter(phrases)
+        top_phrases = phrase_freq.most_common(3)
+        
+        return render_template('phrases.html', top_phrases=top_phrases)
+    except Exception as e:
+        logging.error(f"An error occurred: {str(e)}")
+        return jsonify({"error": "An internal error occurred"}), 500
 
 if __name__ == '__main__':
     import os
