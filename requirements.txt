@@ -3,3 +3,4 @@ deep_translator
 nltk
 tabulate
 SpeechRecognition
+psycopg2
