@@ -1,65 +1,111 @@
-import os
-import re
-from flask import Flask, render_template
+from flask import Flask, render_template, request, jsonify
+import speech_recognition as sr
+from deep_translator import GoogleTranslator
+import sqlite3
+from datetime import datetime
 from collections import Counter
-import logging
-import psycopg2
+import re
+import nltk
+from nltk.util import ngrams
 
 app = Flask(__name__)
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Database setup
+conn = sqlite3.connect('transcriptions.db', check_same_thread=False)
+c = conn.cursor()
 
-# Database connection
-DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///your_local_db.sqlite')
+# Create table if not exists
+c.execute('''CREATE TABLE IF NOT EXISTS transcriptions
+             (id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER,
+              original_text TEXT,
+              translated_text TEXT,
+              timestamp DATETIME)''')
+conn.commit()
 
-def get_db_connection():
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/transcribe_and_translate', methods=['POST'])
+def transcribe_and_translate():
+    user_id = 1  # In a real app, you'd get this from user authentication
+    text = request.form['text']
+    source_lang = request.form['source_lang']
     
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+    recognizer = sr.Recognizer()
+    
+    # If text is empty, try to recognize speech
+    if not text:
+        with sr.Microphone() as source:
+            print("Say something!")
+            audio = recognizer.listen(source)
+        try:
+            text = recognizer.recognize_google(audio, language=source_lang)
+            print(f"Google Speech Recognition thinks you said: {text}")
+        except sr.UnknownValueError:
+            return jsonify({'error': "Google Speech Recognition could not understand audio"})
+        except sr.RequestError as e:
+            return jsonify({'error': f"Could not request results from Google Speech Recognition service; {e}"})
+    
+    translator = GoogleTranslator(source=source_lang, target='en')
+    
+    try:
+        translated_text = translator.translate(text)
+        
+        c.execute("INSERT INTO transcriptions (user_id, original_text, translated_text, timestamp) VALUES (?, ?, ?, ?)",
+                  (user_id, text, translated_text, datetime.now()))
+        conn.commit()
+        
+        return jsonify({'original': text, 'translated': translated_text})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
-def simple_tokenize(text):
-    # This is a very basic tokenizer. It splits on whitespace and removes punctuation.
-    return re.findall(r'\w+', text.lower())
+@app.route('/history')
+def history():
+    user_id = 1  # In a real app, you'd get this from user authentication
+    c.execute("SELECT * FROM transcriptions WHERE user_id = ? ORDER BY timestamp DESC", (user_id,))
+    history = c.fetchall()
+    return render_template('history.html', history=history)
 
-def generate_ngrams(tokens, n):
-    return [' '.join(tokens[i:i+n]) for i in range(len(tokens)-n+1)]
+@app.route('/frequencies')
+def frequencies():
+    user_id = 1  # In a real app, you'd get this from user authentication
+    c.execute("SELECT translated_text FROM transcriptions WHERE user_id = ?", (user_id,))
+    user_texts = c.fetchall()
+    user_text = ' '.join([text[0] for text in user_texts])
+    user_freq = Counter(re.findall(r'\w+', user_text.lower()))
+    
+    c.execute("SELECT translated_text FROM transcriptions")
+    all_texts = c.fetchall()
+    all_text = ' '.join([text[0] for text in all_texts])
+    all_freq = Counter(re.findall(r'\w+', all_text.lower()))
+    
+    words = set(list(user_freq.keys())[:10] + list(all_freq.keys())[:10])
+    freq_data = [[word, user_freq.get(word, 0), all_freq.get(word, 0)] for word in words]
+    freq_data.sort(key=lambda x: x[1], reverse=True)
+    
+    return render_template('frequencies.html', freq_data=freq_data)
 
 @app.route('/phrases')
 def phrases():
-    try:
-        user_id = 1  # In a real app, you'd get this from user authentication
-        
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute("SELECT translated_text FROM transcriptions WHERE user_id = %s", (user_id,))
-            user_texts = cur.fetchall()
-        
-        if not user_texts:
-            return render_template('phrases.html', top_phrases=[], error="No texts found for this user")
-        
-        user_text = ' '.join([text[0] for text in user_texts])
-        
-        tokens = simple_tokenize(user_text)
-        
-        phrases = []
-        for n in range(2, 5):
-            phrases.extend(generate_ngrams(tokens, n))
-        
-        phrase_freq = Counter(phrases)
-        top_phrases = phrase_freq.most_common(3)
-        
-        return render_template('phrases.html', top_phrases=top_phrases)
+    user_id = 1  # In a real app, you'd get this from user authentication
+    c.execute("SELECT translated_text FROM transcriptions WHERE user_id = ?", (user_id,))
+    user_texts = c.fetchall()
+    user_text = ' '.join([text[0] for text in user_texts])
     
-    except Exception as e:
-        logging.error(f"An error occurred: {str(e)}", exc_info=True)
-        return render_template('error.html', error=str(e)), 500
-    finally:
-        if conn:
-            conn.close()
+    tokens = nltk.word_tokenize(user_text.lower())
+    
+    phrases = []
+    for n in range(2, 5):
+        phrases.extend([' '.join(gram) for gram in ngrams(tokens, n)])
+    
+    phrase_freq = Counter(phrases)
+    top_phrases = phrase_freq.most_common(3)
+    
+    return render_template('phrases.html', top_phrases=top_phrases)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
