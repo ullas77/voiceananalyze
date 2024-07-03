@@ -9,7 +9,8 @@ import nltk
 from nltk.util import ngrams
 
 app = Flask(__name__)
-
+import nltk
+nltk.download('punkt')
 # Database setup
 conn = sqlite3.connect('transcriptions.db', check_same_thread=False)
 c = conn.cursor()
